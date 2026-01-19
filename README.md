@@ -8,8 +8,8 @@ The goal is to set up a GitHub-based project portfolio and practice version cont
 - `README.md`: Project description and notes.
 
 ## Tools
-- Positron (VS Code fork)
+- Positron
 - Git + GitHub
 
 ## Updates
-- README edited and pushed from Positron (Jan 2026).
+- README edited and pushed from Positron.
