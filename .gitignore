@@ -1,0 +1,16 @@
+# Data files
+*.csv
+*.parquet
+*.feather
+
+# R outputs
+*.rds
+*.RData
+*.Rhistory
+
+# Quarto / RMarkdown build
+*_files/
+*.html
+
+# OS
+.DS_Store
