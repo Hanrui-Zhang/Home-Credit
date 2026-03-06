@@ -7,7 +7,15 @@ This repository contains a reusable data preparation script for the Home Credit 
 The purpose of this script is to translate EDA findings into production-ready, reusable data cleaning and feature engineering functions.
 
 The script ensures consistent transformations for both training and test datasets to prevent data leakage.
+## Model Card
 
+This repository includes a model card documenting the machine learning model used for predicting credit default risk in the Home Credit dataset.
+
+The model card notebook describes model design, threshold analysis, SHAP explainability, fairness considerations, and model limitations.
+
+Notebook location:
+
+model_card.ipynb
 ---
 
 ## What the Script Does
