@@ -2,9 +2,16 @@
 
 ## Overview
 
-This repository presents my individual work completed as part of the Home Credit Default Risk analytics project for IS 6850. The goal of the project was to use borrower and credit-related data to better understand default risk and support more informed lending decisions.
+This project presents a full end-to-end machine learning workflow for predicting credit default risk using the Home Credit dataset.
 
-This portfolio highlights the notebooks and scripts I personally created during the project. It is intended to demonstrate my ability to perform data cleaning, exploratory data analysis, feature engineering, modeling documentation, and business-focused communication.
+The goal is to support smarter lending decisions by identifying high-risk applicants while maintaining approval rates for reliable borrowers.
+
+The project includes:
+- data cleaning and preprocessing
+- exploratory data analysis (EDA)
+- feature engineering
+- model development and evaluation
+- business-oriented insights
 
 ---
 
@@ -59,6 +66,16 @@ In a business setting, this type of solution can help balance growth and risk ma
 
 ---
 
+## 📊 Key Results
+
+- Model achieved strong predictive performance in distinguishing high-risk applicants  
+- Income, credit history, and repayment behavior are key predictors  
+- Feature engineering significantly improved model performance  
+
+These results demonstrate the effectiveness of data-driven credit risk assessment.
+
+---
+
 ## Challenges and Difficulties Encountered
 
 Several challenges came up during the project:
@@ -99,6 +116,13 @@ Model documentation notebook describing model purpose, inputs, evaluation consid
 
 ### 3. `EDA.qmd`
 Exploratory data analysis notebook examining data distributions, missing values, class imbalance, and key relationships between borrower characteristics and default risk. The notebook also provides initial business insights that guide feature engineering and modeling decisions.
+
+---
+
+## Repository Structure
+
+- notebooks/: main analysis notebooks  
+- scripts/: reusable preprocessing scripts
 
 ---
 
