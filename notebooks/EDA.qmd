@@ -43,8 +43,9 @@ The dataset was loaded successfully and cleaned so that variable names are in a 
 #| echo: true
 
 # Update this path if your file is stored somewhere else
-app_train <- read_csv("application_train.csv") |>
-  clean_names()
+data_path <- "application_train.csv"
+
+app_train <- read_csv(data_path) |> clean_names()
 ```
 
 ```{r}
@@ -415,14 +416,11 @@ eda_df |>
 
 ## 11. Key Business Insights
 
-Based on the exploratory analysis above, several important insights emerge:
-
-1. The target variable is imbalanced, so default prediction is not a simple classification problem.
-2. Missing data is a major issue in several variables and must be handled carefully.
-3. Income and credit variables are highly skewed, suggesting that transformations or robust methods may be useful.
-4. Borrower groups differ in their default rates, which suggests that categorical segmentation may add predictive value.
-5. Ratio-based features such as credit-to-income and annuity-to-income may provide stronger business meaning than raw amounts alone.
-6. Early exploratory findings directly support later preprocessing, feature engineering, and modeling decisions.
+- The strong class imbalance indicates that naive accuracy metrics may be misleading, and alternative evaluation strategies are needed.
+- High levels of missing data suggest that data preprocessing decisions will significantly impact model performance.
+- Financial burden indicators (such as credit-to-income ratio) are likely more meaningful than raw financial values.
+- Different borrower segments (e.g., income type, contract type) show varying default behavior, which can be leveraged for segmentation-based modeling.
+- Early insights from EDA directly inform feature engineering and model design decisions.
 
 ## 12. Summary
 
