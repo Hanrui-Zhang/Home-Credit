@@ -1,23 +1,24 @@
 ---
-title: "EDA – Home Credit Default Risk"
-format: 
+title: "Home Credit Default Risk: Exploratory Data Analysis"
+
+format:
   html:
     toc: true
     toc-depth: 3
     toc-location: left
     toc-title: "Contents"
     embed-resources: true
+
 execute:
   warning: false
   message: false
 ---
 
-
 ```{r}
 #| label: setup
 #| echo: true
 
-needed <- c("tidyverse", "janitor", "skimr", "naniar")
+needed <- c("tidyverse", "janitor", "skimr", "naniar", "scales")
 to_install <- needed[!needed %in% installed.packages()[, "Package"]]
 if (length(to_install) > 0) install.packages(to_install)
 
@@ -25,186 +26,404 @@ library(tidyverse)
 library(janitor)
 library(skimr)
 library(naniar)
+library(scales)
+
+theme_set(theme_minimal())
+options(scipen = 999)
 ```
-# Setup
+## 1. Project Context
+
+This notebook presents exploratory data analysis for the Home Credit Default Risk project. The purpose of this analysis is to better understand the borrower data, identify data quality issues, and examine patterns related to default risk. These findings help guide later preprocessing, feature engineering, and modeling decisions.
+
+## 2. Load Data
+The dataset was loaded successfully and cleaned so that variable names are in a consistent format. This makes later analysis easier and reduces errors caused by formatting differences in column names.
+
 ```{r}
-df <- read_csv("application_train.csv") |> 
+#| label: load-data
+#| echo: true
+
+# Update this path if your file is stored somewhere else
+app_train <- read_csv("application_train.csv") |>
   clean_names()
-df |> 
-  select(
-    target,
-    name_contract_type,
-    code_gender,
-    amt_income_total,
-    amt_credit
-  ) |> 
-  head(5)
 ```
-# Introduction
----Project goal
-This project performs exploratory data analysis (EDA) for the Home Credit Default Risk dataset. The goal is to understand the data structure, identify data quality issues, and examine the relationships between predictors and the default target, so that we can establish a solid foundation for predictive modeling.
 
----Business problem (plain language)
-A lending institution needs to identify applicants who are more likely to default on a loan. Better risk identification can reduce losses while maintaining access to credit for reliable customers.
-
----Analytic problem
-This is a supervised classification problem: predict the binary target `target` (default vs. non-default) using applicant-level features (demographics, financial indicators, credit history proxies, etc.).
-
----EDA purpose and key questions
-In this notebook, I will explore:
-
-1) Is the target imbalanced? What baseline accuracy would a naive model achieve?
-
-2) What variables appear most related to the target?
-
-3) What is the scope/pattern of missing data, and what is a reasonable handling plan?
-
-4) Are there suspicious values (e.g., zeros used as missing, outliers) that may require cleaning?
-
-# Description of the data
 ```{r}
-n_rows <- nrow(df)
-n_cols <- ncol(df)
+#| label: first-look
+#| echo: true
 
-target_rate <- mean(df$target, na.rm = TRUE)
-
-num_vars <- df |> select(where(is.numeric)) |> ncol()
-cat_vars <- df |> select(where(~is.character(.x) || is.factor(.x))) |> ncol()
-
-tibble(
-  rows = n_rows,
-  columns = n_cols,
-  numeric_variables = num_vars,
-  categorical_variables = cat_vars,
-  target_default_rate = target_rate
-)
+head(app_train)
 ```
-The above table provides an overview of the dataset, including its size, variable composition, and overall default rate. The dataset comprises over 300,000 applicant records, characterized by a large number of numerical features and a small number of categorical variables, which is a common feature in credit risk datasets. The default rate indicates a moderate level of class imbalance, which needs to be taken into account in subsequent analyses.
 
-# Discussion of missing data
+## 3. Data Overview
+This overview gives a general understanding of the size and structure of the dataset. It also provides an early look at missing values, variable types, and possible quality issues that will affect downstream analysis.
+
 ```{r}
-missing_tbl <- df |>
-  summarise(across(everything(), ~mean(is.na(.x)))) |>
-  pivot_longer(cols = everything(), names_to = "variable", values_to = "missing_rate") |>
-  arrange(desc(missing_rate))
+#| label: data-dimensions
+#| echo: true
 
-missing_tbl |> slice_head(n = 20)
+dim(app_train)
+```
 
-missing_tbl |>
+```{r}
+#| label: column-names
+#| echo: true
+
+names(app_train)[1:20]
+```
+
+```{r}
+#| label: data-summary
+#| echo: true
+
+skim(app_train)
+```
+
+## 4. Target Distribution
+The target variable is clearly imbalanced, with many more non-default cases than default cases. This is important because class imbalance can affect both model training and evaluation. It suggests that model performance should not be judged only by overall accuracy.
+
+```{r}
+#| label: target-counts
+#| echo: true
+
+app_train |>
+  count(target) |>
+  mutate(percent = n / sum(n))
+```
+
+```{r}
+#| label: target-plot
+#| echo: true
+
+app_train |>
+  count(target) |>
+  ggplot(aes(x = factor(target), y = n)) +
+  geom_col() +
+  scale_y_continuous(labels = comma) +
+  labs(
+    title = "Distribution of Default Target",
+    x = "Target (0 = Non-default, 1 = Default)",
+    y = "Number of Applicants"
+  )
+```
+
+## 5. Missing Data Analysis
+Several variables contain substantial missingness. This indicates that missing-value handling will be a major part of the preprocessing workflow. Features with extremely high missingness may require careful imputation or may need to be excluded, depending on their usefulness.
+
+```{r}
+#| label: missing-summary
+#| echo: true
+
+missing_summary <- app_train |>
+  summarise(across(everything(), ~ mean(is.na(.)))) |>
+  pivot_longer(cols = everything(), names_to = "variable", values_to = "missing_pct") |>
+  mutate(missing_pct = missing_pct * 100) |>
+  arrange(desc(missing_pct))
+
+head(missing_summary, 20)
+```
+
+```{r}
+#| label: missing-plot
+#| echo: true
+#| fig-height: 7
+#| fig-width: 10
+
+missing_summary |>
   slice_head(n = 20) |>
-  ggplot(aes(x = reorder(variable, missing_rate), y = missing_rate)) +
+  ggplot(aes(x = reorder(variable, missing_pct), y = missing_pct)) +
   geom_col() +
   coord_flip() +
   labs(
-    title = "Top 20 Variables by Missing Rate",
+    title = "Top 20 Variables by Missing Percentage",
     x = "Variable",
-    y = "Missing Rate"
+    y = "Missing Percentage"
   )
 ```
-The variables with the highest missing rates are largely related to property and housing characteristics (e.g., apartment area and building information), suggesting that the missingness is structural rather than random for many applicants. For subsequent modeling, I plan to:
 
-- Drop variables with extremely high missingness (e.g., above 60–70%) if they do not provide substantial predictive value.
-
-- Use median imputation for numeric variables and mode or an explicit "Missing" category for categorical variables when appropriate.
-
-- Consider adding missingness indicator variables for selected features, as the presence of missing values itself may carry information about applicant profiles.
-
-These strategies balance information retention with model robustness and will be evaluated during the modeling stage.
-
-# Exploratory Visualizations and Summary Tables
 ```{r}
-#target-distribution
-df |>
-  count(target) |>
-  mutate(target = factor(target)) |>
-  ggplot(aes(x = target, y = n)) +
-  geom_col() +
+#| label: missing-visual
+#| echo: true
+#| fig-height: 6
+#| fig-width: 10
+
+vis_miss(app_train |> select(1:20))
+```
+
+## 6. Basic Feature Cleanup for Exploration
+Some variables in this dataset are easier to interpret after simple transformations. In particular, age and employment duration are stored as negative day counts, and the special employment value 365243 appears to represent an anomalous or placeholder value. These transformations do not change the underlying information, but they make the variables easier to interpret in charts and summary statistics. Ratio-based features are also useful because they may capture financial burden better than raw amounts.
+
+```{r}
+#| label: basic-cleanup
+#| echo: true
+
+eda_df <- app_train |>
+  mutate(
+    years_birth = round(abs(days_birth) / 365, 1),
+    days_employed = if_else(days_employed == 365243, NA_real_, as.numeric(days_employed)),
+    years_employed = round(abs(days_employed) / 365, 1),
+    credit_income_ratio = amt_credit / amt_income_total,
+    annuity_income_ratio = amt_annuity / amt_income_total
+  )
+```
+
+## 7. Numeric Feature Exploration
+### 7.1 Age Distribution
+The applicant population covers a broad age range. Converting age from negative day counts into years makes the distribution far more interpretable and more useful for business communication.
+
+```{r}
+#| label: age-summary
+#| echo: true
+
+eda_df |>
+  summarise(
+    min_age = min(years_birth, na.rm = TRUE),
+    median_age = median(years_birth, na.rm = TRUE),
+    mean_age = mean(years_birth, na.rm = TRUE),
+    max_age = max(years_birth, na.rm = TRUE)
+  )
+```
+
+```{r}
+#| label: age-plot
+#| echo: true
+
+ggplot(eda_df, aes(x = years_birth)) +
+  geom_histogram(bins = 30) +
   labs(
-    title = "Distribution of Target Variable",
-    x = "Target (0 = Non-default, 1 = Default)",
+    title = "Applicant Age Distribution",
+    x = "Age in Years",
     y = "Count"
   )
 ```
-This plot shows the distribution of the binary target variable. The data are clearly imbalanced, with non-default observations representing the majority of cases.
+
+### 7.2 Income Distribution
+Income appears to be highly skewed, which is common in financial data. This suggests that later modeling may benefit from transformations or robust handling of extreme values.
 
 ```{r}
-#baseline-accuracy
-baseline_tbl <- df |>
-  count(target) |>
-  mutate(pct = n / sum(n)) |>
-  summarise(baseline_accuracy = max(pct))
+#| label: income-summary
+#| echo: true
 
-baseline_tbl
-```
-The naive baseline accuracy represents the performance of a classifier that always predicts the majority class. This provides a reference point for evaluating more advanced models later in the analysis.
-
-```{r}
-#numeric-correlation
-num_corr <- df |>
-  select(where(is.numeric)) |>
-  summarise(across(-target, ~ cor(.x, df$target, use = "pairwise.complete.obs"))) |>
-  pivot_longer(everything(),
-               names_to = "variable",
-               values_to = "correlation") |>
-  arrange(desc(abs(correlation)))
-
-num_corr |> slice_head(n = 10)
-```
-This table ranks numeric variables by their absolute correlation with the target. While correlation alone does not imply causation, it serves as a useful screening tool during EDA to identify potentially informative predictors.
-
-```{r}
-#numeric-boxplots
-top_vars <- num_corr |> slice_head(n = 3) |> pull(variable)
-
-df |>
-  select(target, all_of(top_vars)) |>
-  pivot_longer(
-    cols = all_of(top_vars),
-    names_to = "variable",
-    values_to = "value"
-  ) |>
-  filter(!is.na(value)) |>   # ✅ 关键：先过滤 NA
-  ggplot(aes(x = factor(target), y = value)) +
-  geom_boxplot(outlier.alpha = 0.2) +
-  facet_wrap(~ variable, scales = "free_y") +
-  labs(
-    title = "Top Numeric Variables by Target Group",
-    x = "Target (0 = Non-default, 1 = Default)",
-    y = "Value"
+eda_df |>
+  summarise(
+    min_income = min(amt_income_total, na.rm = TRUE),
+    median_income = median(amt_income_total, na.rm = TRUE),
+    mean_income = mean(amt_income_total, na.rm = TRUE),
+    max_income = max(amt_income_total, na.rm = TRUE)
   )
 ```
-These boxplots compare the distributions of the selected numeric variables across default and non-default groups after excluding missing values. For all three ext_source variables, non-default applicants tend to have higher median values than default applicants, with relatively limited overlap between the distributions. This consistent separation suggests that these variables may be strong predictors of default risk, despite their substantial missingness.
 
 ```{r}
-#categorical-default-rate
-df |>
-  filter(!is.na(code_gender)) |>
-  group_by(code_gender) |>
+#| label: income-plot
+#| echo: true
+
+ggplot(eda_df, aes(x = amt_income_total)) +
+  geom_histogram(bins = 30) +
+  labs(
+    title = "Income Distribution",
+    x = "Total Income",
+    y = "Count"
+  )
+```
+
+### 7.3 Credit Amount Distribution
+Credit amounts also vary widely across applicants. This suggests that borrower risk may depend not only on the size of the requested credit but also on how that credit compares with income and repayment capacity.
+
+```{r}
+#| label: credit-summary
+#| echo: true
+
+eda_df |>
   summarise(
-    n = n(),
-    default_rate = mean(target)
-  ) |>
-  ggplot(aes(x = reorder(code_gender, default_rate), y = default_rate)) +
+    min_credit = min(amt_credit, na.rm = TRUE),
+    median_credit = median(amt_credit, na.rm = TRUE),
+    mean_credit = mean(amt_credit, na.rm = TRUE),
+    max_credit = max(amt_credit, na.rm = TRUE)
+  )
+```
+
+```{r}
+#| label: credit-plot
+#| echo: true
+
+ggplot(eda_df, aes(x = amt_credit)) +
+  geom_histogram(bins = 30) +
+  labs(
+    title = "Credit Amount Distribution",
+    x = "Credit Amount",
+    y = "Count"
+  )
+```
+
+## 8. Categorical Feature Exploration
+### 8.1 Contract Type
+This distribution shows the relative frequency of different contract types. It helps identify dominant product categories and provides useful context for understanding the borrower population.
+
+```{r}
+#| label: contract-type
+#| echo: true
+
+eda_df |>
+  count(name_contract_type) |>
+  mutate(percent = n / sum(n)) |>
+  arrange(desc(n))
+```
+
+```{r}
+#| label: contract-type-plot
+#| echo: true
+
+eda_df |>
+  count(name_contract_type) |>
+  ggplot(aes(x = reorder(name_contract_type, n), y = n)) +
   geom_col() +
   coord_flip() +
+  scale_y_continuous(labels = comma) +
   labs(
-    title = "Default Rate by Gender",
+    title = "Applicants by Contract Type",
+    x = "Contract Type",
+    y = "Count"
+  )
+```
+
+### 8.2 Gender
+Categorical variables such as gender can provide useful descriptive context, although they should be interpreted carefully in any predictive or fairness-related discussion.
+
+```{r}
+#| label: gender-summary
+#| echo: true
+
+eda_df |>
+  count(code_gender) |>
+  mutate(percent = n / sum(n)) |>
+  arrange(desc(n))
+```
+
+```{r}
+#| label: gender-plot
+#| echo: true
+
+eda_df |>
+  count(code_gender) |>
+  ggplot(aes(x = reorder(code_gender, n), y = n)) +
+  geom_col() +
+  labs(
+    title = "Applicants by Gender",
     x = "Gender",
+    y = "Count"
+  )
+```
+
+## 9. Target Relationship Exploration
+### 9.1 Default Rate by Contract Type
+Comparing default rates across groups helps reveal whether some borrower segments may be riskier than others. These patterns can inform both business interpretation and feature engineering.
+
+```{r}
+#| label: default-by-contract
+#| echo: true
+
+eda_df |>
+  group_by(name_contract_type) |>
+  summarise(default_rate = mean(target, na.rm = TRUE), n = n()) |>
+  arrange(desc(default_rate))
+```
+
+```{r}
+#| label: default-by-contract-plot
+#| echo: true
+
+eda_df |>
+  group_by(name_contract_type) |>
+  summarise(default_rate = mean(target, na.rm = TRUE)) |>
+  ggplot(aes(x = reorder(name_contract_type, default_rate), y = default_rate)) +
+  geom_col() +
+  scale_y_continuous(labels = percent_format(accuracy = 0.1)) +
+  coord_flip() +
+  labs(
+    title = "Default Rate by Contract Type",
+    x = "Contract Type",
     y = "Default Rate"
   )
 ```
-This visualization shows default rates across categories of a selected categorical variable. Differences in default rates across groups suggest that categorical features may also contribute useful information for default prediction.
 
-# Results
----The target variable is imbalanced, with non-default cases representing the majority of observations. A naive classifier that always predicts the majority class achieves a relatively high baseline accuracy, indicating that accuracy alone may be misleading for model evaluation.
+### 9.2 Default Rate by Income Type
+Borrowers with different income sources may have different repayment patterns. This makes income type a potentially informative feature for downstream risk modeling.
 
----Missing data are concentrated in a subset of variables, particularly those related to housing and property characteristics. Many of these variables exhibit structural missingness, suggesting that missing values are not purely random and should be handled thoughtfully during data preparation.
+```{r}
+#| label: default-by-income-type
+#| echo: true
 
----Several numeric variables, especially the ext_source scores, show strong and consistent differences between default and non-default applicants. Non-default applicants tend to have higher median values, with relatively limited overlap between distributions, indicating strong discriminatory potential.
+eda_df |>
+  group_by(name_income_type) |>
+  summarise(default_rate = mean(target, na.rm = TRUE), n = n()) |>
+  arrange(desc(default_rate))
+```
 
----Selected categorical variables also display variation in default rates across categories, suggesting that non-numeric features may provide additional predictive information beyond numeric variables alone.
+```{r}
+#| label: default-by-income-type-plot
+#| echo: true
 
----Overall, the EDA reveals both data quality challenges (missing values and potential sparsity) and promising predictive signals. These insights will guide feature selection, missing data handling, and evaluation metric choices in subsequent modeling steps.
+eda_df |>
+  group_by(name_income_type) |>
+  summarise(default_rate = mean(target, na.rm = TRUE)) |>
+  ggplot(aes(x = reorder(name_income_type, default_rate), y = default_rate)) +
+  geom_col() +
+  scale_y_continuous(labels = percent_format(accuracy = 0.1)) +
+  coord_flip() +
+  labs(
+    title = "Default Rate by Income Type",
+    x = "Income Type",
+    y = "Default Rate"
+  )
+```
 
-# How I used AI
-I used an AI assistant to help structure the EDA notebook according to the assignment rubric, draft R code templates for data summaries and visualizations, and refine interpretive comments between code chunks. I reviewed and modified the suggested code to match the project dataset and verified all results by running the analysis locally in RStudio. 
+## 10. Feature Engineering Preview
+Ratio-based features may be more informative than raw financial values because they better capture repayment burden relative to available income. This is one reason feature engineering is such an important part of the credit risk workflow.
+
+```{r}
+#| label: ratio-summary
+#| echo: true
+
+eda_df |>
+  select(credit_income_ratio, annuity_income_ratio) |>
+  summary()
+```
+
+```{r}
+#| label: ratio-plot
+#| echo: true
+
+ggplot(eda_df, aes(x = credit_income_ratio)) +
+  geom_histogram(bins = 30) +
+  labs(
+    title = "Credit-to-Income Ratio Distribution",
+    x = "Credit-to-Income Ratio",
+    y = "Count"
+  )
+```
+
+```{r}
+#| label: ratio-by-target
+#| echo: true
+
+eda_df |>
+  group_by(target) |>
+  summarise(
+    avg_credit_income_ratio = mean(credit_income_ratio, na.rm = TRUE),
+    avg_annuity_income_ratio = mean(annuity_income_ratio, na.rm = TRUE)
+  )
+```
+
+## 11. Key Business Insights
+
+Based on the exploratory analysis above, several important insights emerge:
+
+1. The target variable is imbalanced, so default prediction is not a simple classification problem.
+2. Missing data is a major issue in several variables and must be handled carefully.
+3. Income and credit variables are highly skewed, suggesting that transformations or robust methods may be useful.
+4. Borrower groups differ in their default rates, which suggests that categorical segmentation may add predictive value.
+5. Ratio-based features such as credit-to-income and annuity-to-income may provide stronger business meaning than raw amounts alone.
+6. Early exploratory findings directly support later preprocessing, feature engineering, and modeling decisions.
+
+## 12. Summary
+
+This exploratory data analysis provided an initial understanding of the Home Credit borrower dataset and highlighted several important challenges, including class imbalance, missingness, and skewed financial variables. It also identified useful directions for feature engineering and business interpretation. These findings informed the subsequent data preparation and modeling stages of the project.
