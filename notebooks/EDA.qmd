@@ -227,6 +227,14 @@ ggplot(eda_df, aes(x = amt_income_total)) +
 ```
 Income appears to be highly skewed, which is common in financial data. This suggests that later modeling may benefit from transformations or robust handling of extreme values.
 
+### Insight
+
+- Income distribution is highly skewed, with most applicants earning lower income levels  
+- A small number of applicants have extremely high income values  
+
+**Business Insight:**  
+This suggests that raw income may not fully capture financial stability, and transformations or additional features may be needed to improve model performance.
+
 ### 7.3 Credit Amount Distribution
 
 ```{r}
