@@ -139,6 +139,14 @@ These files show my workflow from data understanding through preparation and mod
 
 ---
 
+## Data Availability
+
+The dataset used in this project (Home Credit Default Risk) is not included in this repository due to size limitations. To reproduce the analysis, please download the dataset from Kaggle and place the files in the working directory before running the notebooks.
+
+Large raw data files and intermediate outputs are intentionally excluded from version control.
+
+---
+
 ## Notes
 
 - This repository contains portfolio materials and selected project files only.
