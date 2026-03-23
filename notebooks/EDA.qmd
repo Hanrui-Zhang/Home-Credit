@@ -36,7 +36,6 @@ options(scipen = 999)
 This notebook presents exploratory data analysis for the Home Credit Default Risk project. The purpose of this analysis is to better understand the borrower data, identify data quality issues, and examine patterns related to default risk. These findings help guide later preprocessing, feature engineering, and modeling decisions.
 
 ## 2. Load Data
-The dataset was loaded successfully and cleaned so that variable names are in a consistent format. This makes later analysis easier and reduces errors caused by formatting differences in column names.
 
 ```{r}
 #| label: load-data
@@ -54,9 +53,9 @@ app_train <- read_csv(data_path) |> clean_names()
 
 head(app_train)
 ```
+The dataset was loaded successfully and cleaned so that variable names are in a consistent format. This makes later analysis easier and reduces errors caused by formatting differences in column names.
 
 ## 3. Data Overview
-This overview gives a general understanding of the size and structure of the dataset. It also provides an early look at missing values, variable types, and possible quality issues that will affect downstream analysis.
 
 ```{r}
 #| label: data-dimensions
@@ -78,9 +77,9 @@ names(app_train)[1:20]
 
 skim(app_train)
 ```
+This overview gives a general understanding of the size and structure of the dataset. It also provides an early look at missing values, variable types, and possible quality issues that will affect downstream analysis.
 
 ## 4. Target Distribution
-The target variable is clearly imbalanced, with many more non-default cases than default cases. This is important because class imbalance can affect both model training and evaluation. It suggests that model performance should not be judged only by overall accuracy.
 
 ```{r}
 #| label: target-counts
@@ -106,9 +105,9 @@ app_train |>
     y = "Number of Applicants"
   )
 ```
+The target variable is clearly imbalanced, with many more non-default cases than default cases. This is important because class imbalance can affect both model training and evaluation. It suggests that model performance should not be judged only by overall accuracy.
 
 ## 5. Missing Data Analysis
-Several variables contain substantial missingness. This indicates that missing-value handling will be a major part of the preprocessing workflow. Features with extremely high missingness may require careful imputation or may need to be excluded, depending on their usefulness.
 
 ```{r}
 #| label: missing-summary
@@ -149,9 +148,10 @@ missing_summary |>
 
 vis_miss(app_train |> select(1:20))
 ```
+Several variables contain substantial missingness. This indicates that missing-value handling will be a major part of the preprocessing workflow. Features with extremely high missingness may require careful imputation or may need to be excluded, depending on their usefulness.
 
 ## 6. Basic Feature Cleanup for Exploration
-Some variables in this dataset are easier to interpret after simple transformations. In particular, age and employment duration are stored as negative day counts, and the special employment value 365243 appears to represent an anomalous or placeholder value. These transformations do not change the underlying information, but they make the variables easier to interpret in charts and summary statistics. Ratio-based features are also useful because they may capture financial burden better than raw amounts.
+Some variables in this dataset are easier to interpret after simple transformations. In particular, age and employment duration are stored as negative day counts, and the special employment value 365243 appears to represent an anomalous or placeholder value. 
 
 ```{r}
 #| label: basic-cleanup
@@ -166,10 +166,10 @@ eda_df <- app_train |>
     annuity_income_ratio = amt_annuity / amt_income_total
   )
 ```
+These transformations do not change the underlying information, but they make the variables easier to interpret in charts and summary statistics. Ratio-based features are also useful because they may capture financial burden better than raw amounts.
 
 ## 7. Numeric Feature Exploration
 ### 7.1 Age Distribution
-The applicant population covers a broad age range. Converting age from negative day counts into years makes the distribution far more interpretable and more useful for business communication.
 
 ```{r}
 #| label: age-summary
@@ -196,9 +196,9 @@ ggplot(eda_df, aes(x = years_birth)) +
     y = "Count"
   )
 ```
+The applicant population covers a broad age range. Converting age from negative day counts into years makes the distribution far more interpretable and more useful for business communication.
 
 ### 7.2 Income Distribution
-Income appears to be highly skewed, which is common in financial data. This suggests that later modeling may benefit from transformations or robust handling of extreme values.
 
 ```{r}
 #| label: income-summary
@@ -225,9 +225,9 @@ ggplot(eda_df, aes(x = amt_income_total)) +
     y = "Count"
   )
 ```
+Income appears to be highly skewed, which is common in financial data. This suggests that later modeling may benefit from transformations or robust handling of extreme values.
 
 ### 7.3 Credit Amount Distribution
-Credit amounts also vary widely across applicants. This suggests that borrower risk may depend not only on the size of the requested credit but also on how that credit compares with income and repayment capacity.
 
 ```{r}
 #| label: credit-summary
@@ -254,10 +254,10 @@ ggplot(eda_df, aes(x = amt_credit)) +
     y = "Count"
   )
 ```
+Credit amounts also vary widely across applicants. This suggests that borrower risk may depend not only on the size of the requested credit but also on how that credit compares with income and repayment capacity.
 
 ## 8. Categorical Feature Exploration
 ### 8.1 Contract Type
-This distribution shows the relative frequency of different contract types. It helps identify dominant product categories and provides useful context for understanding the borrower population.
 
 ```{r}
 #| label: contract-type
@@ -285,9 +285,9 @@ eda_df |>
     y = "Count"
   )
 ```
+This distribution shows the relative frequency of different contract types. It helps identify dominant product categories and provides useful context for understanding the borrower population.
 
 ### 8.2 Gender
-Categorical variables such as gender can provide useful descriptive context, although they should be interpreted carefully in any predictive or fairness-related discussion.
 
 ```{r}
 #| label: gender-summary
@@ -313,10 +313,10 @@ eda_df |>
     y = "Count"
   )
 ```
+Categorical variables such as gender can provide useful descriptive context, although they should be interpreted carefully in any predictive or fairness-related discussion.
 
 ## 9. Target Relationship Exploration
 ### 9.1 Default Rate by Contract Type
-Comparing default rates across groups helps reveal whether some borrower segments may be riskier than others. These patterns can inform both business interpretation and feature engineering.
 
 ```{r}
 #| label: default-by-contract
@@ -345,9 +345,9 @@ eda_df |>
     y = "Default Rate"
   )
 ```
+Comparing default rates across groups helps reveal whether some borrower segments may be riskier than others. These patterns can inform both business interpretation and feature engineering.
 
 ### 9.2 Default Rate by Income Type
-Borrowers with different income sources may have different repayment patterns. This makes income type a potentially informative feature for downstream risk modeling.
 
 ```{r}
 #| label: default-by-income-type
@@ -376,9 +376,9 @@ eda_df |>
     y = "Default Rate"
   )
 ```
+Borrowers with different income sources may have different repayment patterns. This makes income type a potentially informative feature for downstream risk modeling.
 
 ## 10. Feature Engineering Preview
-Ratio-based features may be more informative than raw financial values because they better capture repayment burden relative to available income. This is one reason feature engineering is such an important part of the credit risk workflow.
 
 ```{r}
 #| label: ratio-summary
@@ -413,6 +413,7 @@ eda_df |>
     avg_annuity_income_ratio = mean(annuity_income_ratio, na.rm = TRUE)
   )
 ```
+Ratio-based features may be more informative than raw financial values because they better capture repayment burden relative to available income. This is one reason feature engineering is such an important part of the credit risk workflow.
 
 ## 11. Key Business Insights
 
