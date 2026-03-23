@@ -1,0 +1,210 @@
+---
+title: "EDA – Home Credit Default Risk"
+format: 
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    toc-title: "Contents"
+    embed-resources: true
+execute:
+  warning: false
+  message: false
+---
+
+
+```{r}
+#| label: setup
+#| echo: true
+
+needed <- c("tidyverse", "janitor", "skimr", "naniar")
+to_install <- needed[!needed %in% installed.packages()[, "Package"]]
+if (length(to_install) > 0) install.packages(to_install)
+
+library(tidyverse)
+library(janitor)
+library(skimr)
+library(naniar)
+```
+# Setup
+```{r}
+df <- read_csv("application_train.csv") |> 
+  clean_names()
+df |> 
+  select(
+    target,
+    name_contract_type,
+    code_gender,
+    amt_income_total,
+    amt_credit
+  ) |> 
+  head(5)
+```
+# Introduction
+---Project goal
+This project performs exploratory data analysis (EDA) for the Home Credit Default Risk dataset. The goal is to understand the data structure, identify data quality issues, and examine the relationships between predictors and the default target, so that we can establish a solid foundation for predictive modeling.
+
+---Business problem (plain language)
+A lending institution needs to identify applicants who are more likely to default on a loan. Better risk identification can reduce losses while maintaining access to credit for reliable customers.
+
+---Analytic problem
+This is a supervised classification problem: predict the binary target `target` (default vs. non-default) using applicant-level features (demographics, financial indicators, credit history proxies, etc.).
+
+---EDA purpose and key questions
+In this notebook, I will explore:
+
+1) Is the target imbalanced? What baseline accuracy would a naive model achieve?
+
+2) What variables appear most related to the target?
+
+3) What is the scope/pattern of missing data, and what is a reasonable handling plan?
+
+4) Are there suspicious values (e.g., zeros used as missing, outliers) that may require cleaning?
+
+# Description of the data
+```{r}
+n_rows <- nrow(df)
+n_cols <- ncol(df)
+
+target_rate <- mean(df$target, na.rm = TRUE)
+
+num_vars <- df |> select(where(is.numeric)) |> ncol()
+cat_vars <- df |> select(where(~is.character(.x) || is.factor(.x))) |> ncol()
+
+tibble(
+  rows = n_rows,
+  columns = n_cols,
+  numeric_variables = num_vars,
+  categorical_variables = cat_vars,
+  target_default_rate = target_rate
+)
+```
+The above table provides an overview of the dataset, including its size, variable composition, and overall default rate. The dataset comprises over 300,000 applicant records, characterized by a large number of numerical features and a small number of categorical variables, which is a common feature in credit risk datasets. The default rate indicates a moderate level of class imbalance, which needs to be taken into account in subsequent analyses.
+
+# Discussion of missing data
+```{r}
+missing_tbl <- df |>
+  summarise(across(everything(), ~mean(is.na(.x)))) |>
+  pivot_longer(cols = everything(), names_to = "variable", values_to = "missing_rate") |>
+  arrange(desc(missing_rate))
+
+missing_tbl |> slice_head(n = 20)
+
+missing_tbl |>
+  slice_head(n = 20) |>
+  ggplot(aes(x = reorder(variable, missing_rate), y = missing_rate)) +
+  geom_col() +
+  coord_flip() +
+  labs(
+    title = "Top 20 Variables by Missing Rate",
+    x = "Variable",
+    y = "Missing Rate"
+  )
+```
+The variables with the highest missing rates are largely related to property and housing characteristics (e.g., apartment area and building information), suggesting that the missingness is structural rather than random for many applicants. For subsequent modeling, I plan to:
+
+- Drop variables with extremely high missingness (e.g., above 60–70%) if they do not provide substantial predictive value.
+
+- Use median imputation for numeric variables and mode or an explicit "Missing" category for categorical variables when appropriate.
+
+- Consider adding missingness indicator variables for selected features, as the presence of missing values itself may carry information about applicant profiles.
+
+These strategies balance information retention with model robustness and will be evaluated during the modeling stage.
+
+# Exploratory Visualizations and Summary Tables
+```{r}
+#target-distribution
+df |>
+  count(target) |>
+  mutate(target = factor(target)) |>
+  ggplot(aes(x = target, y = n)) +
+  geom_col() +
+  labs(
+    title = "Distribution of Target Variable",
+    x = "Target (0 = Non-default, 1 = Default)",
+    y = "Count"
+  )
+```
+This plot shows the distribution of the binary target variable. The data are clearly imbalanced, with non-default observations representing the majority of cases.
+
+```{r}
+#baseline-accuracy
+baseline_tbl <- df |>
+  count(target) |>
+  mutate(pct = n / sum(n)) |>
+  summarise(baseline_accuracy = max(pct))
+
+baseline_tbl
+```
+The naive baseline accuracy represents the performance of a classifier that always predicts the majority class. This provides a reference point for evaluating more advanced models later in the analysis.
+
+```{r}
+#numeric-correlation
+num_corr <- df |>
+  select(where(is.numeric)) |>
+  summarise(across(-target, ~ cor(.x, df$target, use = "pairwise.complete.obs"))) |>
+  pivot_longer(everything(),
+               names_to = "variable",
+               values_to = "correlation") |>
+  arrange(desc(abs(correlation)))
+
+num_corr |> slice_head(n = 10)
+```
+This table ranks numeric variables by their absolute correlation with the target. While correlation alone does not imply causation, it serves as a useful screening tool during EDA to identify potentially informative predictors.
+
+```{r}
+#numeric-boxplots
+top_vars <- num_corr |> slice_head(n = 3) |> pull(variable)
+
+df |>
+  select(target, all_of(top_vars)) |>
+  pivot_longer(
+    cols = all_of(top_vars),
+    names_to = "variable",
+    values_to = "value"
+  ) |>
+  filter(!is.na(value)) |>   # ✅ 关键：先过滤 NA
+  ggplot(aes(x = factor(target), y = value)) +
+  geom_boxplot(outlier.alpha = 0.2) +
+  facet_wrap(~ variable, scales = "free_y") +
+  labs(
+    title = "Top Numeric Variables by Target Group",
+    x = "Target (0 = Non-default, 1 = Default)",
+    y = "Value"
+  )
+```
+These boxplots compare the distributions of the selected numeric variables across default and non-default groups after excluding missing values. For all three ext_source variables, non-default applicants tend to have higher median values than default applicants, with relatively limited overlap between the distributions. This consistent separation suggests that these variables may be strong predictors of default risk, despite their substantial missingness.
+
+```{r}
+#categorical-default-rate
+df |>
+  filter(!is.na(code_gender)) |>
+  group_by(code_gender) |>
+  summarise(
+    n = n(),
+    default_rate = mean(target)
+  ) |>
+  ggplot(aes(x = reorder(code_gender, default_rate), y = default_rate)) +
+  geom_col() +
+  coord_flip() +
+  labs(
+    title = "Default Rate by Gender",
+    x = "Gender",
+    y = "Default Rate"
+  )
+```
+This visualization shows default rates across categories of a selected categorical variable. Differences in default rates across groups suggest that categorical features may also contribute useful information for default prediction.
+
+# Results
+---The target variable is imbalanced, with non-default cases representing the majority of observations. A naive classifier that always predicts the majority class achieves a relatively high baseline accuracy, indicating that accuracy alone may be misleading for model evaluation.
+
+---Missing data are concentrated in a subset of variables, particularly those related to housing and property characteristics. Many of these variables exhibit structural missingness, suggesting that missing values are not purely random and should be handled thoughtfully during data preparation.
+
+---Several numeric variables, especially the ext_source scores, show strong and consistent differences between default and non-default applicants. Non-default applicants tend to have higher median values, with relatively limited overlap between distributions, indicating strong discriminatory potential.
+
+---Selected categorical variables also display variation in default rates across categories, suggesting that non-numeric features may provide additional predictive information beyond numeric variables alone.
+
+---Overall, the EDA reveals both data quality challenges (missing values and potential sparsity) and promising predictive signals. These insights will guide feature selection, missing data handling, and evaluation metric choices in subsequent modeling steps.
+
+# How I used AI
+I used an AI assistant to help structure the EDA notebook according to the assignment rubric, draft R code templates for data summaries and visualizations, and refine interpretive comments between code chunks. I reviewed and modified the suggested code to match the project dataset and verified all results by running the analysis locally in RStudio. 
